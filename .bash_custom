@@ -1,0 +1,163 @@
+#
+export PATH=/usr/local/bin:/usr/local/sbin:$PATH
+#Add SqlDev to PATH
+export PATH=$PATH:/GDRIVE/PAPPS/sqldeveloper
+export PATH=$PATH:/GDRIVE/PAPPS/sqldeveloper/sqlcl/bin
+#EMCLI
+export JAVA_HOME=/opt/jdk1.7.0_79
+export PATH=$PATH:$JAVA_HOME/bin:~/emcli
+export EMCLI_STATE_DIR=/home/g704706/emcli
+if [ -f $(brew --prefix)/etc/bash_completion ]; then
+    . $(brew --prefix)/etc/bash_completion
+fi
+#OMS 
+#export AGENT_HOME=/u01/app/oracle/agent12c/core/12.1.0.4.0
+#export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+#export ORACLE_BASE=/u01/app/oracle
+#export OMS_HOME=/u01/app/oracle/Middleware12cr4/oms
+#export EMOMDir=$ORACLE_BASE/gc_inst/em/EMGC_OMS1/sysman/log
+#alias tailemom='tail -f $EMOMDir/emoms.trc'
+#alias viemom='vi $EMOMDir/emoms.trc'
+#alias cdemom='cd $EMOMDir'
+#alias omsmgt='/rman/swlib/scripts/$(hostname | cut -d. -f1)/oms_mgmt.bash'
+###
+#Oracle Home
+export ORACLE_HOME=/home/g704706/work/instantclient_12_1
+export PATH=$PATH:${ORACLE_HOME}:$OMS_HOME/bin:$AGENT_HOME/bin
+export LD_LIBRARY_PATH=$OMS_HOME/lib:${ORACLE_HOME}
+#Use Menurc
+test -f ~/.host_aliases && . ~/.host_aliases
+#test -f ~/.menurc && . ~/.menurc
+test -f ~/.bash_functions.bash && . ~/.bash_functions.bash
+alias yummy='sudo yum -y upgrade'
+
+gid(){
+Host=$1
+Password='!May2016asdf'
+User=g704706
+echo "sshpass -p "$Password" ssh -o StrictHostKeyChecking=no $User@$Host"
+sshpass -p "$Password" ssh -o StrictHostKeyChecking=no $User@$Host
+}
+
+gidlist(){
+complete -W "$(hgrep gid | awk '{print $3}' | sort | uniq | grep -v gid)" gid
+}
+
+clippy(){
+kill $(ps -ef | grep "/usr/bin/VBoxClient --clipboard" | grep -v grep | awk '{print $2}')
+/usr/bin/VBoxClient --clipboard
+}
+
+alias ornl="ps -ef | grep -v grep | grep -q 'ssh -N rov@login1' || ssh -f -N ornl"
+#alias palantir="sshpass -p 'zo9o2rth' ssh -o StrictHostKeyChecking=no -p 23822 rov@localhost"
+#alias palantirdb="sshpass -p 'zo9o2rth' ssh -o StrictHostKeyChecking=no -p 23823 rov@localhost"
+
+ornlm(){
+Password='ro7o2zth'
+#Password='zo9o2rth'
+select OrnlServer in $(echo palantir palantirdb palantirdbproxy) ; do
+echo $Password
+case $OrnlServer in
+ palantir)
+ sshpass -p "$Password" ssh -o StrictHostKeyChecking=no -p 23822 rov@localhost
+ ;;
+ palantirdb)
+ sshpass -p "$Password" ssh -o StrictHostKeyChecking=no -p 23823 rov@localhost
+ ;;
+ palantirdbproxy)
+ echo $Password
+ ssh -t -t -L9999:localhost:9932 rov@login1.ornl.gov ssh -t -D 9932 rov@palantir.ornl.gov
+ #sshpass -p 'zo9o2rth' ssh -o StrictHostKeyChecking=no -L9999:localhost -p 9932  rov@localhost
+ #ssh -t -t -D -L9999:localhost:9932 rov@login1.ornl.gov ssh -t -D 9932 rov@palantir.ornl.gov
+ ;;
+esac
+ break
+done
+}
+
+# the default Terminal window size: 26 lines and 107 columns
+#  sizetw 30 130
+
+alias genpasswd="strings /dev/urandom | grep -o '[[:alnum:]]' | head -n 30 | tr -d '\n'; echo"
+alias intercept="sudo strace -ff -e trace=write -e write=1,2 -p" 
+alias port='netstat -tulanp'
+alias listen="lsof -P -i -n" 
+alias tree="ls -R | grep ":$" | sed -e 's/:$//' -e 's/[^-][^\/]*\//--/g' -e 's/^/   /' -e 's/-/|/'" 
+#Productivity 
+#alias ls="ls --color=auto" 
+#alias ll="ls --color -al" 
+alias grep='grep --color=auto' 
+mcd() { mkdir -p "$1"; cd "$1";} 
+alias makescript="fc -rnl | head -1 >" 
+alias genpasswd="strings /dev/urandom | grep -o '[[:alnum:]]' | head -n 30 | tr -d '\n'; echo" 
+alias c="clear" 
+alias ..='cd ..' 
+alias ...='cd ../..'
+#System info 
+alias cmount="mount | column -t" 
+alias tree="ls -R | grep ":$" | sed -e 's/:$//' -e 's/[^-][^\/]*\//--/g' -e 's/^/   /' -e 's/-/|/'" 
+sbs(){ du -b --max-depth 1 | sort -nr | perl -pe 's{([0-9]+)}{sprintf "%.1f%s", $1>=2**30? ($1/2**30, "G"): $1>=2**20? ($1/2**20, "M"): $1>=2**10? ($1/2**10, "K"): ($1, "")}e';} 
+alias intercept="sudo strace -ff -e trace=write -e write=1,2 -p" 
+alias meminfo='free -m -l -t' 
+alias volume="amixer get Master | sed '1,4 d' | cut -d [ -f 2 | cut -d ] -f 1" 
+  
+#Network 
+alias websiteget="wget --random-wait -r -p -e robots=off -U mozilla" 
+alias listen="lsof -P -i -n" 
+alias port='netstat -tulanp'
+#Funny 
+kernelgraph() { lsmod | perl -e 'print "digraph \"lsmod\" {";<>;while(<>){@_=split/\s+/; print "\"$_[0]\" -> \"$_\"\n" for split/,/,$_[3]}print "}"' | dot -Tpng | display -;} 
+alias busy="cat /dev/urandom | hexdump -C | grep \"ca fe\""
+alias ..='cd ..'
+
+alias ...='cd ../..'
+alias t='(tmux has-session 2>/dev/null && tmux attach) || (tmux new-session)'
+
+
+#cat > start_vpn.sh
+#!/bin/bash
+#/opt/cisco/anyconnect/bin/vpn -s << EOF
+#connect https://your.cisco.vpn.hostname/vpn_name
+#here_goes_your_username
+#here_goes_your_passwordy
+#EOF
+#
+
+change_bgcolor(){
+        case $1 in
+            red)
+                osascript -e 'tell app "Terminal" to set background color of first window to {17655, 0, 0, -16373}';;
+            winered)
+                osascript -e 'tell app "Terminal" to set background color of first window to {10000, 0, 0, -16373}';;
+            green)
+                osascript -e 'tell app "Terminal" to set background color of first window to {0, 17655, 0, -16373}';;
+            blue)
+                osascript -e 'tell app "Terminal" to set background color of first window to {0, 0, 17655, -16373}';;
+            *)  
+                osascript -e 'tell app "Terminal" to set background color of first window to {0, 0, 0, -16373}';;
+        esac
+}
+
+alias colorize='colorize_via_pygmentize'
+
+colorize_via_pygmentize() {
+    if [ ! -x "$(which /usr/local/bin/pygmentize)" ]; then
+        echo "package \'pygmentize\' is not installed!"
+        return -1
+    fi
+
+    if [ $# -eq 0 ]; then
+        /usr/local/bin/pygmentize  -g $@
+    fi
+
+    for FNAME in $@
+    do
+        filename=$(basename "$FNAME")
+        lexer=`/usr/local/bin/pygmentize -N \"$filename\"`
+        if [ "Z$lexer" != "Ztext" ]; then
+            /usr/local/bin/pygmentize -l $lexer "$FNAME"
+        else
+            /usr/local/bin/pygmentize -g "$FNAME"
+        fi
+    done
+}

@@ -1,0 +1,239 @@
+#!/bin/bash
+unset http_proxy 
+export VSQL6=~/work/opt/vertica.6.1.1/bin/vsql
+export VSQL4=~/work/opt/vertica.4.1.19/bin/vsql
+export SQLPLUS=~/work/opt/sqlplus.11.2.3/sqlplus
+export MYSQL=/bin/mysql
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/work/opt/sqlplus.11.2.3
+alias sqlplus='rlwrap $SQLPLUS'
+
+MyCPR(){
+if [ -n $User ] && [ -n $Name ]  ; then
+   sqlite3 ~/work/sqlite/syn_config "select password from passwords where NAME = '$Name' and upper(USERNAME) = upper('$User') ;"
+else
+  echo User=$User Name=$Name
+  echo Need Values from User/Name Variables, Exiting...
+  exit 1
+fi
+}
+
+RunSql(){
+export Db=$1
+export Name=$Db
+export User=$2
+export SqlScript=$3
+export Credential=`MyCPR`
+if [ -z $SqlScript ] && [ -n $User ] && [ -n $Name ] ; then
+   #sqlplus ${User}/"${Credential}"@$Db
+   cd ~/work/sql
+   sqlplus ${User}/"${Credential}"@$Db
+   #sqlplus ${User}/"${Credential}"@$Db
+   #gqlplus ${User}/"${Credential}"@$Db
+elif [ -n $SqlScript ] && [ -f $SqlScript ] && [ -n $User ] && [ -n $Name ] ; then
+   #sqlplus /nolog <<EOF
+   sqlplus /nolog <<EOF
+   #gqlplus /nolog <<EOF
+   connect ${User}/"${Credential}"@$Db
+   @${SqlScript}
+exit;
+EOF
+fi
+}
+
+AddHostComment(){
+select HostName in `sqlite3 ~/work/sqlite/syn_config "select hostname from hostlist order by 1;" | cut -d. -f1`
+do
+ echo "Enter Comments for Host"
+ read Response
+ if [ "${Response}X" != "X" ] ; then #Not an Empty Response
+    sqlite3 ~/work/sqlite/syn_config "insert into host_comments (hostname,comments) values ('${HostName}.syniverse.com','$Response'); "
+    break
+ else
+   echo No Response Given, Exiting.... 
+   break
+ fi
+done
+}
+
+AddDb(){
+echo "Enter DatabaseName DbType UserName Password Host Port Comment"
+echo "Valid Entries for DbType are mysql oracle vertica5 vertica6" 
+echo "eg. VISDP vertica5 verticadb XXXX dal-vdb01.syniverse.com 5433 MDR/UDR_DALLAS"
+read DatabaseName DbType UserName Password Host Port App
+#HostType=$2
+echo DatabaseName=$DatabaseName DbType=$DbType UserName=$UserName Password=$Password Host=$Host Port=$Port Comment=$App
+echo "Is This Correct Y/N"
+read Response
+if [ "$Response" == "Y" ] || [ "$Response" == "y" ]  ; then
+   sqlite3 ~/work/sqlite/syn_config "insert into passwords (name, username, password, hostname,dbtype,port, app) values ('$DatabaseName', '$UserName', '$Password', '$Host','$DbType', $Port, '$App'); "
+else
+   echo "Retry Data Entry"
+   AddDb
+fi
+}
+
+AddHost(){
+echo "Enter a Hostname and HostType"
+read HostName HostType
+#HostType=$2
+if [ "${HostName}X" == "X" ] || [ "${HostType}X" == "X" ] ; then
+   echo "USAGE:"
+   echo "AddHost [HostName] [HostType] Must have values"
+   echo "This was Given [HostName]=$HostName [HostType]=$HostType"
+   echo "EXAMPLE AddHost myhost.syniverse.com oracle"
+   exit 1
+else #Both Vars have Values
+   sqlite3 ~/work/sqlite/syn_config "insert into hostlist (hostname,type) values ('$HostName','$HostType'); "
+   echo "Would you Like to Create a Comment? Y/N"
+   read Response
+   if [ "$Response" == "Y" ] || [ "$Response" == "y" ]  ; then
+      echo "Enter Comments"
+      read Response
+      sqlite3 ~/work/sqlite/syn_config "insert into host_comments (hostname,comments) values ('$HostName','$Response'); "
+   fi
+fi
+}
+
+listdbs(){
+echo DB_NAME TYPE HOST APP
+sqlite3 ~/work/sqlite/syn_config "select distinct name, dbtype, hostname, app from passwords where dbtype != 'na' order by 2,1;"  | tr -s '|' ' '
+}
+
+
+gid(){
+export Name=GID
+export User=g704706
+export HostName=$1
+if [ "${HostName}X" == "X" ] ; then #No Host has been passed in
+   export Credential=`MyCPR`
+#clear ; echo "Choose Connection Type"
+   select HostType in `sqlite3 ~/work/sqlite/syn_config "select distinct(type) from hostlist order by 1;" | cut -d. -f1`
+   do
+     select HostName in `sqlite3 ~/work/sqlite/syn_config "select hostname from hostlist where type = '$HostType' order by 1;" | cut -d. -f1`
+     do
+      #echo sshpass -p $Credential ssh -o StrictHostKeyChecking=no $User@$HostName
+      echo "Host Comments if any"
+      echo "****************************"
+      sqlite3 ~/work/sqlite/syn_config "select t2.comments from hostlist t1, host_comments t2 where t1.hostname = t2.hostname and t1.hostname='${HostName}.syniverse.com';"
+      echo "****************************"
+      #echo "SSH $Credential $User@$HostName"
+      #Stage Files
+      sshpass -p "$Credential" scp -rp -o StrictHostKeyChecking=no ~/work/config/GID/.*rc ~/.ssh  ~/work/config/GID/* $User@$HostName:~/
+      sshpass -p "$Credential" ssh -o StrictHostKeyChecking=no $User@$HostName
+      break
+    done
+    break
+   done
+else
+   export Credential=`MyCPR`
+   echo "Host Comments if any"
+   echo "****************************"
+   sqlite3 ~/work/sqlite/syn_config "select t2.comments from hostlist t1, host_comments t2 where t1.hostname = t2.hostname and t1.hostname='${HostName}.syniverse.com';"
+   echo "****************************"
+   #Stage Files
+  sshpass -p "$Credential" scp -rp -o StrictHostKeyChecking=no ~/work/config/GID/.*rc ~/.ssh  ~/work/config/GID/* $User@$HostName:~/
+   #sshpass -p "$Credential" scp -o StrictHostKeyChecking=no ~/work/config/GID_BASHRC $User@$HostName:~/.bashrc
+   #sshpass -p "$Credential" scp -o StrictHostKeyChecking=no ~/work/config/GID/ $User@$HostName:~/
+   sshpass -p "$Credential" ssh -o StrictHostKeyChecking=no $User@$HostName
+fi
+}
+
+GenHostAliases(){
+test -f ~/.host_aliases && rm -f ~/.host_aliases
+sqlite3 ~/work/sqlite/syn_config "select hostname from hostlist;" | while read Host ; do
+  Host=${Host%.syniverse.com*}
+  Line="alias ${Host}='gid ${Host}'"
+  echo $Line >> ~/.host_aliases
+done
+}
+
+BuildMenuSql(){
+if [ "$DbType" == "mysql" ] ; then
+   export DbNameSql="select distinct hostname,port,app from passwords where dbtype = '$DbType' order by 1;"
+   export DBUserNamesSql="select username from passwords where dbtype='$DbType' and hostname='$Db' and port='$MyPort' order by 1;"
+   export LogDeetsSql="select username,password,hostname,port from passwords where dbtype='$DbType' and hostname='$Db' and username='$DbUser' and port='$MyPort' order by 1;"
+else
+   export DbNameSql="select distinct name,app from passwords where dbtype='$DbType' order by 1;"
+   export DBUserNamesSql="select username from passwords where dbtype='$DbType' and name='$Db' order by 1;"
+   export LogDeetsSql="select username,password,hostname,port from passwords where dbtype='$DbType' and name='$Db' and username='$DbUser' order by 1;"
+fi
+}
+
+DBCreds(){
+#clear
+BuildMenuSql
+echo "DB SELECTION MENU"
+select DataBase in `sqlite3 ~/work/sqlite/syn_config "$DbNameSql" | cut -d. -f1 | tr -s '|' '*'`
+do
+  export Db=`echo $DataBase | cut -d'*' -f 1`
+  export MyPort=`echo $DataBase | cut -d'*' -f 2` #Mysql hw-vissvcs-test03*4305*VISGSM_TEST
+  echo "DB User Selection MENU"
+  BuildMenuSql
+  select DbUser in `sqlite3 ~/work/sqlite/syn_config "$DBUserNamesSql"`
+  do
+    BuildMenuSql
+    #dbadmin|Ja1ma1ca|hw-vissvcs-test03|4305
+    export LogDeets=`sqlite3 ~/work/sqlite/syn_config "$LogDeetsSql" `
+    case $DbType in
+    mysql)
+      export Db=mysql
+      export DbUser=`echo $LogDeets | cut -d'|' -f1`
+      export Credential=`echo $LogDeets | cut -d'|' -f2`
+      export Host=`echo $LogDeets | cut -d'|' -f3`
+      export Port=`echo $LogDeets | cut -d'|' -f4`
+    ;;
+    *)
+      export DbUser=`echo $LogDeets | cut -d'|' -f1`
+      export Credential=`echo $LogDeets | cut -d'|' -f2`
+      export Host=`echo $LogDeets | cut -d'|' -f3`
+      export Port=`echo $LogDeets | cut -d'|' -f4`
+     ;;
+    esac
+    break
+  done
+  break
+done
+}
+
+sqlm(){
+export UserType=admin
+export Credential=`MyCPR`
+#clear
+echo "DB Type MENU"
+select DbType in `sqlite3 ~/work/sqlite/syn_config "select distinct(dbtype) from passwords where dbtype != 'na' order by 1;" | cut -d. -f1`
+do
+ case $DbType in
+  oracle)
+   DBCreds #Get Db List/Users/Cred
+   cd ~/work/sql
+   #echo sqlplus $DbUser/"$Credential"@$Host:$Port/$DataBase
+   sqlplus $DbUser/"$Credential"@$Host:$Port/$Db
+   break
+  ;;
+  vertica6)
+   DBCreds #Get Db List/Users/Cred
+   cd ~/work/vsql
+   $VSQL6 $DbUser -w $Credential -d $Db -h $Host  -p $Port
+   /opt/vertica.6.1.1/bin/vsql -U $DbUser -w $Credential -d $Db -h $Host  -p $Port
+   #echo $LogDeets /opt/vertica.4.1.19/bin/vsql -U $DbUser -w $Credential -d $Db -h $Host  -p $Port
+   break
+  ;;
+  vertica5)
+   DBCreds #Get Db List/Users/Cred
+   cd ~/work/vsql
+   $VSQL4 -U $DbUser -w $Credential -d $Db -h $Host  -p $Port
+   #/opt/vertica.4.1.19/bin/vsql -U $DbUser -w $Credential -d $Db -h $Host  -p $Port
+   #echo $LogDeets /opt/vertica.4.1.19/bin/vsql -U $DbUser -w $Credential -d $DataBase -h $Host  -p $Port
+   break
+  ;;
+  mysql)
+   DBCreds #Get Db List/Users/Cred
+   cd ~/work/mysql
+   echo $MYSQL -P $Port -h $Host -u $DbUser -p$Credential $Db
+   $MYSQL -P $Port -h $Host -u $DbUser -p$Credential $Db
+   break
+  ;;
+ esac
+done
+}
+
